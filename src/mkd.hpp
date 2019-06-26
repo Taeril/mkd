@@ -16,9 +16,18 @@ class Parser {
 		std::string parse(std::string const& md);
 
 		inline std::string const& html() { return html_; }
+		inline std::string const& title() { return title_; }
+		inline std::string const& slug() { return slug_; }
 	private:
 		std::string html_;
+		std::string title_;
+		std::string slug_;
+		std::string hx_text_;
+		std::unordered_set<std::string> slugs_;
 		int image_nesting_level_ = 0;
+		bool in_hx = false;
+
+		std::string uniq_slug(std::string const& str);
 
 		static int enter_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata);
 		static int leave_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata);

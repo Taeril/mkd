@@ -1,5 +1,7 @@
 #include "mkd.hpp"
 
+#include "utils.hpp"
+
 #include <fmt/core.h>
 
 namespace mkd {
@@ -26,13 +28,35 @@ std::string Parser::parse(std::string const& md) {
 	};
 
 	html_.clear();
+	title_.clear();
+	slug_.clear();
 	image_nesting_level_ = 0;
+	in_hx = false;
 
 	if(md_parse(md.c_str(), (MD_SIZE)md.size(), &parser, this) != 0) {
 		fmt::print(stderr, "md_parse failed\n"); // TODO: ...
 	}
 
 	return html_;
+}
+
+
+std::string Parser::uniq_slug(std::string const& str) {
+	std::string test_slug = slugify(str);
+	std::string base_slug(test_slug);
+
+	auto p = slugs_.find(test_slug);
+	size_t ver = 1;
+	while(p != slugs_.end()) {
+		++ver;
+
+		test_slug = fmt::format("{}-{}", base_slug, ver);
+		p = slugs_.find(test_slug);
+	}
+
+	slugs_.insert(test_slug);
+
+	return test_slug;
 }
 
 
@@ -74,7 +98,9 @@ int Parser::enter_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata) {
 		parser->html_.append("<hr>\n");
 	} else if(type == MD_BLOCK_H) {
 		MD_BLOCK_H_DETAIL* det = (MD_BLOCK_H_DETAIL*)detail;
-		parser->html_.append(fmt::format("<h{}>", det->level));
+		parser->html_.append(fmt::format("<h{}", det->level));
+		parser->in_hx = true;
+		parser->hx_text_.clear();
 	} else if(type == MD_BLOCK_CODE) {
 		MD_BLOCK_CODE_DETAIL* det = (MD_BLOCK_CODE_DETAIL*)detail;
 
@@ -177,7 +203,14 @@ int Parser::leave_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata) {
 		// noop
 	} else if(type == MD_BLOCK_H) {
 		MD_BLOCK_H_DETAIL* det = (MD_BLOCK_H_DETAIL*)detail;
-		parser->html_.append(fmt::format("</h{}>\n", det->level));
+		std::string hx_slug = parser->uniq_slug(parser->hx_text_);
+		if(parser->title_.empty()) {
+			parser->title_ = parser->hx_text_;
+			parser->slug_ = hx_slug;
+		}
+		parser->html_.append(fmt::format(" id=\"{}\">{}</h{}>\n",
+			hx_slug, parser->hx_text_, det->level));
+		parser->in_hx = false;
 	} else if(type == MD_BLOCK_CODE) {
 		parser->html_.append("</code></pre>\n");
 	} else if(type == MD_BLOCK_HTML) {
@@ -278,6 +311,15 @@ int Parser::leave_span_cb(MD_SPANTYPE type, void* detail, void* userdata) {
 
 int Parser::text_cb(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdata) {
 	Parser* parser = (Parser*)userdata;
+
+	if(type != MD_TEXT_NULLCHAR && parser->in_hx) {
+		if(type == MD_TEXT_BR || type == MD_TEXT_SOFTBR) {
+			parser->hx_text_.append(" ");
+		} else {
+			parser->hx_text_.append(text, size);
+		}
+		return 0;
+	}
 
 	if(type == MD_TEXT_NULLCHAR) {
 		// noop

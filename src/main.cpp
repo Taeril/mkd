@@ -35,6 +35,9 @@ int main(int argc, char** argv) {
 	hr();
 	fmt::print("{}\n", html);
 	hr();
+	fmt::print("title: {}\n", parser.title());
+	fmt::print(" slug: {}\n", parser.slug());
+	hr();
 
 
 	return 0;

@@ -26,6 +26,7 @@ md4c_dep = declare_dependency(
 
 
 sources = files([
+  'utils.cpp',
   'mkd.cpp',
 ])
 
@@ -35,7 +36,7 @@ mkd_lib = static_library('mkd', sources,
   dependencies: [fmt_dep, md4c_dep],
   include_directories: '.',
 )
-install_headers('mkd.hpp', subdir: 'mkd')
+install_headers('mkd.hpp')
 
 mkd_dep = declare_dependency(
   link_with: mkd_lib,
