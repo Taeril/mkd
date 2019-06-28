@@ -1,6 +1,6 @@
 #include <fmt/core.h>
 
-#include "mkd.hpp"
+#include <mkd/mkd.hpp>
 
 #include <string>
 #include <fstream>

@@ -13,5 +13,6 @@ endif
 # mkdir subprojects && meson wrap install fmt
 fmt_dep = dependency('fmt', fallback: ['fmt', 'fmt_dep'])
 
+subdir('include')
 subdir('src')
 

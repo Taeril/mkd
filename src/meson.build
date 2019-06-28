@@ -34,13 +34,12 @@ mkd_lib = static_library('mkd', sources,
   install : true,
   gnu_symbol_visibility : 'hidden',
   dependencies: [fmt_dep, md4c_dep],
-  include_directories: '.',
+  include_directories: [mkd_inc, '../include/mkd'],
 )
-install_headers('mkd.hpp')
 
 mkd_dep = declare_dependency(
   link_with: mkd_lib,
-  include_directories: '.',
+  include_directories: mkd_inc,
 )
 
 
