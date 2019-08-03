@@ -37,8 +37,13 @@ int main(int argc, char** argv) {
 	hr();
 	fmt::print("title: {}\n", parser.title());
 	fmt::print(" slug: {}\n", parser.slug());
+	fmt::print("files: {}\n", parser.files().size());
 	hr();
 
+	for(auto const& p : parser.files()) {
+		fmt::print("file: {}\n{}\n", p.first, p.second);
+		hr();
+	}
 
 	return 0;
 }

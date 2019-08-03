@@ -3,6 +3,7 @@
 
 #include <string>
 #include <unordered_set>
+#include <unordered_map>
 
 #include "md4c/md4c.h"
 
@@ -18,12 +19,17 @@ class Parser {
 		inline std::string const& html() { return html_; }
 		inline std::string const& title() { return title_; }
 		inline std::string const& slug() { return slug_; }
+		inline auto const& files() { return files_; }
+
 	private:
 		std::string html_;
 		std::string title_;
 		std::string slug_;
 		std::string hx_text_;
+		std::string file_;
+		std::string code_;
 		std::unordered_set<std::string> slugs_;
+		std::unordered_map<std::string, std::string> files_;
 		int image_nesting_level_ = 0;
 		bool in_hx = false;
 

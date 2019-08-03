@@ -102,6 +102,9 @@ int Parser::enter_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata) {
 	} else if(type == MD_BLOCK_CODE) {
 		MD_BLOCK_CODE_DETAIL* det = (MD_BLOCK_CODE_DETAIL*)detail;
 
+		parser->file_ = "";
+		parser->code_ = "";
+
 		if(det->info.size > 0) {
 			int s = 0;
 			int fpos = 0;
@@ -131,6 +134,8 @@ int Parser::enter_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata) {
 						if(p > start) {
 							s = 3; // END
 							size = p - start;
+
+							parser->file_ = std::string(det->info.text + start, size);
 
 							//printf(" |%.*s|\n", p-start, det->info.text + start);
 							parser->html_.append("<div class=\"file\"><a href=\"");
@@ -213,6 +218,10 @@ int Parser::leave_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata) {
 		parser->in_hx = false;
 	} else if(type == MD_BLOCK_CODE) {
 		parser->html_.append("</code></pre>\n");
+
+		if(!parser->file_.empty()) {
+			parser->files_.emplace(parser->file_, parser->code_);
+		}
 	} else if(type == MD_BLOCK_HTML) {
 		// noop
 	} else if(type == MD_BLOCK_P) {
@@ -332,6 +341,9 @@ int Parser::text_cb(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* u
 	} else if(type == MD_TEXT_ENTITY) {
 		parser->render_html(text, size);
 	} else {
+		if(type == MD_TEXT_CODE) {
+			parser->code_.append(text, size);
+		}
 		parser->render_html(text, size);
 	}
 	return 0;
