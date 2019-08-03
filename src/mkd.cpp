@@ -97,8 +97,6 @@ int Parser::enter_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata) {
 	} else if(type == MD_BLOCK_HR) {
 		parser->html_.append("<hr>\n");
 	} else if(type == MD_BLOCK_H) {
-		MD_BLOCK_H_DETAIL* det = (MD_BLOCK_H_DETAIL*)detail;
-		parser->html_.append(fmt::format("<h{}", det->level));
 		parser->in_hx = true;
 		parser->hx_text_.clear();
 	} else if(type == MD_BLOCK_CODE) {
@@ -203,13 +201,15 @@ int Parser::leave_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata) {
 		// noop
 	} else if(type == MD_BLOCK_H) {
 		MD_BLOCK_H_DETAIL* det = (MD_BLOCK_H_DETAIL*)detail;
+		const auto level = det->level;
 		std::string hx_slug = parser->uniq_slug(parser->hx_text_);
 		if(parser->title_.empty()) {
 			parser->title_ = parser->hx_text_;
 			parser->slug_ = hx_slug;
+		} else {
+			parser->html_.append(fmt::format("<h{} id=\"{}\">{}</h{}>\n",
+				level, hx_slug, parser->hx_text_, level));
 		}
-		parser->html_.append(fmt::format(" id=\"{}\">{}</h{}>\n",
-			hx_slug, parser->hx_text_, det->level));
 		parser->in_hx = false;
 	} else if(type == MD_BLOCK_CODE) {
 		parser->html_.append("</code></pre>\n");
