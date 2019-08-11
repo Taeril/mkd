@@ -264,6 +264,11 @@ int Parser::enter_span_cb(MD_SPANTYPE type, void* detail, void* userdata) {
 		parser->html_.append("<a href=\"");
 		parser->render_attribute(&det->href, ESCAPE_URL);
 
+		auto url = parser->attribute_to_string(&det->href);
+		if(url.find("://") == std::string::npos) {
+			parser->files_.insert(url);
+		}
+
 		if(det->title.text != NULL) {
 			parser->html_.append("\" title=\"");
 			parser->render_attribute(&det->title, ESCAPE_HTML);
@@ -276,6 +281,10 @@ int Parser::enter_span_cb(MD_SPANTYPE type, void* detail, void* userdata) {
 		parser->html_.append("<img src=\"");
 		parser->render_attribute(&det->src, ESCAPE_URL);
 
+		auto url = parser->attribute_to_string(&det->src);
+		if(url.find("://") == std::string::npos) {
+			parser->files_.insert(url);
+		}
 		parser->html_.append("\" alt=\"");
 
 		++parser->image_nesting_level_;
@@ -442,6 +451,19 @@ void Parser::render_attribute(const MD_ATTRIBUTE* attr, bool html) {
 			}
 		}
 	}
+}
+
+std::string Parser::attribute_to_string(const MD_ATTRIBUTE* attr) {
+	std::string ret;
+	for(int i = 0; attr->substr_offsets[i] < attr->size; ++i) {
+		MD_OFFSET off = attr->substr_offsets[i];
+		MD_SIZE size = attr->substr_offsets[i+1] - off;
+		const MD_CHAR* text = attr->text + off;
+
+		ret.append(text, size);
+	}
+
+	return ret;
 }
 
 

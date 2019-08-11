@@ -20,6 +20,7 @@ class Parser {
 		inline std::string const& title() { return title_; }
 		inline std::string const& slug() { return slug_; }
 		inline auto const& codes() { return codes_; }
+		inline auto const& files() { return files_; }
 
 	private:
 		std::string html_;
@@ -30,6 +31,7 @@ class Parser {
 		std::string code_;
 		std::unordered_set<std::string> slugs_;
 		std::unordered_map<std::string, std::string> codes_;
+		std::unordered_set<std::string> files_;
 		int image_nesting_level_ = 0;
 		bool in_hx = false;
 
@@ -44,6 +46,8 @@ class Parser {
 		void render_html(const MD_CHAR* data, MD_SIZE size);
 		void render_url(const MD_CHAR* data, MD_SIZE size);
 		void render_attribute(const MD_ATTRIBUTE* attr, bool html);
+
+		std::string attribute_to_string(const MD_ATTRIBUTE* attr);
 };
 
 } // namespace mkd
