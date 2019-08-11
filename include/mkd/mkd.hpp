@@ -19,7 +19,7 @@ class Parser {
 		inline std::string const& html() { return html_; }
 		inline std::string const& title() { return title_; }
 		inline std::string const& slug() { return slug_; }
-		inline auto const& files() { return files_; }
+		inline auto const& codes() { return codes_; }
 
 	private:
 		std::string html_;
@@ -29,7 +29,7 @@ class Parser {
 		std::string file_;
 		std::string code_;
 		std::unordered_set<std::string> slugs_;
-		std::unordered_map<std::string, std::string> files_;
+		std::unordered_map<std::string, std::string> codes_;
 		int image_nesting_level_ = 0;
 		bool in_hx = false;
 

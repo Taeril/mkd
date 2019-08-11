@@ -217,10 +217,16 @@ int Parser::leave_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata) {
 		}
 		parser->in_hx = false;
 	} else if(type == MD_BLOCK_CODE) {
+		// TODO: pass code_ through syntax highlighter
+		parser->render_html(
+			parser->code_.c_str(),
+			static_cast<MD_SIZE>(parser->code_.size())
+		);
+
 		parser->html_.append("</code></pre>\n");
 
 		if(!parser->file_.empty()) {
-			parser->files_.emplace(parser->file_, parser->code_);
+			parser->codes_.emplace(parser->file_, parser->code_);
 		}
 	} else if(type == MD_BLOCK_HTML) {
 		// noop
@@ -340,10 +346,9 @@ int Parser::text_cb(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* u
 		parser->html_.append(text, size);
 	} else if(type == MD_TEXT_ENTITY) {
 		parser->render_html(text, size);
+	} else if(type == MD_TEXT_CODE) {
+		parser->code_.append(text, size);
 	} else {
-		if(type == MD_TEXT_CODE) {
-			parser->code_.append(text, size);
-		}
 		parser->render_html(text, size);
 	}
 	return 0;
