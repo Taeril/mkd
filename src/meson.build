@@ -14,14 +14,10 @@ configure_file(
 
 
 md4c_lib = static_library('md4c', ['md4c/md4c.c'],
+  install : true,
   gnu_symbol_visibility : 'hidden',
   include_directories: '.',
   override_options: ['warning_level=1', 'c_std=c99'],
-)
-
-md4c_dep = declare_dependency(
-  link_with: md4c_lib,
-  include_directories: '.',
 )
 
 
@@ -33,7 +29,8 @@ sources = files([
 mkd_lib = static_library('mkd', sources,
   install : true,
   gnu_symbol_visibility : 'hidden',
-  dependencies: [fmt_dep, md4c_dep],
+  dependencies: fmt_dep,
+  link_with: md4c_lib,
   include_directories: [mkd_inc, '../include/mkd'],
 )
 
