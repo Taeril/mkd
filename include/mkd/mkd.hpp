@@ -4,8 +4,7 @@
 #include <string>
 #include <unordered_set>
 #include <unordered_map>
-
-#include "md4c/md4c.h"
+#include <memory>
 
 namespace mkd {
 
@@ -26,28 +25,13 @@ class Parser {
 		std::string html_;
 		std::string title_;
 		std::string slug_;
-		std::string hx_text_;
-		std::string file_;
-		std::string code_;
-		std::unordered_set<std::string> slugs_;
+
 		std::unordered_map<std::string, std::string> codes_;
 		std::unordered_set<std::string> files_;
-		int image_nesting_level_ = 0;
-		bool in_hx = false;
 
-		std::string uniq_slug(std::string const& str);
-
-		static int enter_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata);
-		static int leave_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata);
-		static int enter_span_cb(MD_SPANTYPE type, void* detail, void* userdata);
-		static int leave_span_cb(MD_SPANTYPE type, void* detail, void* userdata);
-		static int text_cb(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdata);
-
-		void render_html(const MD_CHAR* data, MD_SIZE size);
-		void render_url(const MD_CHAR* data, MD_SIZE size);
-		void render_attribute(const MD_ATTRIBUTE* attr, bool html);
-
-		std::string attribute_to_string(const MD_ATTRIBUTE* attr);
+		class Impl;
+		std::unique_ptr<Impl> impl;
+		friend class Impl;
 };
 
 } // namespace mkd

@@ -1,12 +1,55 @@
 #include "mkd.hpp"
 
+#include "md4c/md4c.h"
+
 #include "utils.hpp"
 
 #include <fmt/core.h>
 
 namespace mkd {
 
-Parser::Parser() {
+std::string attribute_to_string(const MD_ATTRIBUTE* attr);
+
+class Parser::Impl {
+	public:
+		Impl(Parser* parser);
+		~Impl();
+
+		Parser* parser;
+
+		std::string hx_text_;
+		std::string file_;
+		std::string code_;
+		std::unordered_set<std::string> slugs_;
+		int image_nesting_level_ = 0;
+		bool in_hx = false;
+
+		std::string uniq_slug(std::string const& str);
+
+		static int enter_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata);
+		static int leave_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata);
+		static int enter_span_cb(MD_SPANTYPE type, void* detail, void* userdata);
+		static int leave_span_cb(MD_SPANTYPE type, void* detail, void* userdata);
+		static int text_cb(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdata);
+
+		void render_html(const char* data, size_t size);
+		void render_url(const char* data, size_t size);
+
+		inline void append_html(const char* text, size_t size) {
+			parser->html_.append(text, size);
+		}
+		inline void append_html(const char* text) {
+			parser->html_.append(text);
+		}
+		inline void append_html(std::string const& text) {
+			parser->html_.append(text);
+		}
+
+		std::string render_attribute(const MD_ATTRIBUTE* attr, bool html);
+};
+
+
+Parser::Parser() : impl(std::make_unique<Impl>(this)) {
 }
 
 Parser::~Parser() {
@@ -18,11 +61,11 @@ std::string Parser::parse(std::string const& md) {
 		0,
 		//MD_FLAG_COLLAPSEWHITESPACE | MD_DIALECT_GITHUB,
 		MD_DIALECT_GITHUB,
-		enter_block_cb,
-		leave_block_cb,
-		enter_span_cb,
-		leave_span_cb,
-		text_cb,
+		Impl::enter_block_cb,
+		Impl::leave_block_cb,
+		Impl::enter_span_cb,
+		Impl::leave_span_cb,
+		Impl::text_cb,
 		nullptr,
 		nullptr,
 	};
@@ -30,8 +73,6 @@ std::string Parser::parse(std::string const& md) {
 	html_.clear();
 	title_.clear();
 	slug_.clear();
-	image_nesting_level_ = 0;
-	in_hx = false;
 
 	if(md_parse(md.c_str(), (MD_SIZE)md.size(), &parser, this) != 0) {
 		fmt::print(stderr, "md_parse failed\n"); // TODO: ...
@@ -40,8 +81,16 @@ std::string Parser::parse(std::string const& md) {
 	return html_;
 }
 
+Parser::Impl::Impl(Parser* parser) :
+	parser(parser),
+	image_nesting_level_(0),
+	in_hx(false) {
+}
 
-std::string Parser::uniq_slug(std::string const& str) {
+Parser::Impl::~Impl() {
+}
+
+std::string Parser::Impl::uniq_slug(std::string const& str) {
 	std::string test_slug = slugify(str);
 	std::string base_slug(test_slug);
 
@@ -59,51 +108,50 @@ std::string Parser::uniq_slug(std::string const& str) {
 	return test_slug;
 }
 
-
 #define ESCAPE_HTML true
 #define ESCAPE_URL  false
 
-int Parser::enter_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata) {
+int Parser::Impl::enter_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata) {
 	Parser* parser = (Parser*)userdata;
 
 	if(type == MD_BLOCK_DOC) {
 		// noop
 	} else if(type == MD_BLOCK_QUOTE) {
-		parser->html_.append("<blockquote>\n");
+		parser->impl->append_html("<blockquote>\n");
 	} else if(type == MD_BLOCK_UL) {
-		parser->html_.append("<ul>\n");
+		parser->impl->append_html("<ul>\n");
 	} else if(type == MD_BLOCK_OL) {
 		MD_BLOCK_OL_DETAIL* det = (MD_BLOCK_OL_DETAIL*)detail;
 
 		if(det->start == 1) {
-			parser->html_.append("<ol>\n");
+			parser->impl->append_html("<ol>\n");
 		} else {
-			parser->html_.append(fmt::format("<ol start=\"{}\">\n", det->start));
+			parser->impl->append_html(fmt::format("<ol start=\"{}\">\n", det->start));
 		}
 	} else if(type == MD_BLOCK_LI) {
 		MD_BLOCK_LI_DETAIL* det = (MD_BLOCK_LI_DETAIL*)detail;
 
 		if(det->is_task) {
-			parser->html_.append(
+			parser->impl->append_html(
 				"<li class=\"task-list-item\">"
 				"<input type=\"checkbox\" class=\"task-list-item-checkbox\" disabled"
 			);
 			if(det->task_mark == 'x' || det->task_mark == 'X')
-				parser->html_.append(" checked");
-			parser->html_.append(">");
+				parser->impl->append_html(" checked");
+			parser->impl->append_html(">");
 		} else {
-			parser->html_.append("<li>");
+			parser->impl->append_html("<li>");
 		}
 	} else if(type == MD_BLOCK_HR) {
-		parser->html_.append("<hr>\n");
+		parser->impl->append_html("<hr>\n");
 	} else if(type == MD_BLOCK_H) {
-		parser->in_hx = true;
-		parser->hx_text_.clear();
+		parser->impl->in_hx = true;
+		parser->impl->hx_text_.clear();
 	} else if(type == MD_BLOCK_CODE) {
 		MD_BLOCK_CODE_DETAIL* det = (MD_BLOCK_CODE_DETAIL*)detail;
 
-		parser->file_ = "";
-		parser->code_ = "";
+		parser->impl->file_ = "";
+		parser->impl->code_ = "";
 
 		if(det->info.size > 0) {
 			int s = 0;
@@ -135,212 +183,212 @@ int Parser::enter_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata) {
 							s = 3; // END
 							size = p - start;
 
-							parser->file_ = std::string(det->info.text + start, size);
+							parser->impl->file_ = std::string(det->info.text + start, size);
 
 							//printf(" |%.*s|\n", p-start, det->info.text + start);
-							parser->html_.append("<div class=\"file\"><a href=\"");
-							parser->render_url(det->info.text + start, size);
-							parser->html_.append("\">");
-							parser->render_html(det->info.text + start, size);
-							parser->html_.append("</a></div>\n");
+							parser->impl->append_html("<div class=\"file\"><a href=\"");
+							parser->impl->render_url(det->info.text + start, size);
+							parser->impl->append_html("\">");
+							parser->impl->render_html(det->info.text + start, size);
+							parser->impl->append_html("</a></div>\n");
 						}
 					}
 				}
 			}
 		}
 
-		parser->html_.append("<pre><code");
+		parser->impl->append_html("<pre><code");
 
 		//if(det->lang.text != NULL) {
-		//	parser->html_.append(" class=\"language-");
-		//	parser->render_attribute(&det->lang, ESCAPE_HTML);
-		//	parser->html_.append("\"");
+		//	parser->impl->append_html(" class=\"language-");
+		//	parser->impl->append_html(parser->impl->render_attribute(&det->lang, ESCAPE_HTML));
+		//	parser->impl->append_html("\"");
 		//}
 
-		parser->html_.append(">");
+		parser->impl->append_html(">");
 	} else if(type == MD_BLOCK_HTML) {
 		// noop
 	} else if(type == MD_BLOCK_P) {
-		parser->html_.append("<p>");
+		parser->impl->append_html("<p>");
 	} else if(type == MD_BLOCK_TABLE) {
-		parser->html_.append("<table>\n");
+		parser->impl->append_html("<table>\n");
 	} else if(type == MD_BLOCK_THEAD) {
-		parser->html_.append("<thead>\n");
+		parser->impl->append_html("<thead>\n");
 	} else if(type == MD_BLOCK_TBODY) {
-		parser->html_.append("<tbody>\n");
+		parser->impl->append_html("<tbody>\n");
 	} else if(type == MD_BLOCK_TR) {
-		parser->html_.append("<tr>\n");
+		parser->impl->append_html("<tr>\n");
 	} else if(type == MD_BLOCK_TH || type == MD_BLOCK_TD) {
 		MD_BLOCK_TD_DETAIL* det = (MD_BLOCK_TD_DETAIL*)detail;
-		parser->html_.append("<");
-		parser->html_.append(type == MD_BLOCK_TH ? "th" : "td");
+		parser->impl->append_html("<");
+		parser->impl->append_html(type == MD_BLOCK_TH ? "th" : "td");
 
 		if(det->align == MD_ALIGN_LEFT) {
-			parser->html_.append(" align=\"left\">");
+			parser->impl->append_html(" align=\"left\">");
 		} else if(det->align == MD_ALIGN_CENTER) {
-			parser->html_.append(" align=\"center\">");
+			parser->impl->append_html(" align=\"center\">");
 		} else if(det->align == MD_ALIGN_RIGHT) {
-			parser->html_.append(" align=\"right\">");
+			parser->impl->append_html(" align=\"right\">");
 		} else {
-			parser->html_.append(">");
+			parser->impl->append_html(">");
 		}
 	}
 
 	return 0;
 }
 
-int Parser::leave_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata) {
+int Parser::Impl::leave_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata) {
 	Parser* parser = (Parser*)userdata;
 
 	if(type == MD_BLOCK_DOC) {
 		// noop
 	} else if(type == MD_BLOCK_QUOTE) {
-		parser->html_.append("</blockquote>\n");
+		parser->impl->append_html("</blockquote>\n");
 	} else if(type == MD_BLOCK_UL) {
-		parser->html_.append("</ul>\n");
+		parser->impl->append_html("</ul>\n");
 	} else if(type == MD_BLOCK_OL) {
-		parser->html_.append("</ol>\n");
+		parser->impl->append_html("</ol>\n");
 	} else if(type == MD_BLOCK_LI) {
-		parser->html_.append("</li>\n");
+		parser->impl->append_html("</li>\n");
 	} else if(type == MD_BLOCK_HR) {
 		// noop
 	} else if(type == MD_BLOCK_H) {
 		MD_BLOCK_H_DETAIL* det = (MD_BLOCK_H_DETAIL*)detail;
 		const auto level = det->level;
-		std::string hx_slug = parser->uniq_slug(parser->hx_text_);
+		std::string hx_slug = parser->impl->uniq_slug(parser->impl->hx_text_);
 		if(parser->title_.empty()) {
-			parser->title_ = parser->hx_text_;
+			parser->title_ = parser->impl->hx_text_;
 			parser->slug_ = hx_slug;
 		} else {
-			parser->html_.append(fmt::format("<h{} id=\"{}\">{}</h{}>\n",
-				level, hx_slug, parser->hx_text_, level));
+			parser->impl->append_html(fmt::format("<h{} id=\"{}\">{}</h{}>\n",
+				level, hx_slug, parser->impl->hx_text_, level));
 		}
-		parser->in_hx = false;
+		parser->impl->in_hx = false;
 	} else if(type == MD_BLOCK_CODE) {
 		// TODO: pass code_ through syntax highlighter
-		parser->render_html(
-			parser->code_.c_str(),
-			static_cast<MD_SIZE>(parser->code_.size())
+		parser->impl->render_html(
+			parser->impl->code_.c_str(),
+			static_cast<MD_SIZE>(parser->impl->code_.size())
 		);
 
-		parser->html_.append("</code></pre>\n");
+		parser->impl->append_html("</code></pre>\n");
 
-		if(!parser->file_.empty()) {
-			parser->codes_.emplace(parser->file_, parser->code_);
+		if(!parser->impl->file_.empty()) {
+			parser->codes_.emplace(parser->impl->file_, parser->impl->code_);
 		}
 	} else if(type == MD_BLOCK_HTML) {
 		// noop
 	} else if(type == MD_BLOCK_P) {
-		parser->html_.append("</p>\n");
+		parser->impl->append_html("</p>\n");
 	} else if(type == MD_BLOCK_TABLE) {
-		parser->html_.append("</table>\n");
+		parser->impl->append_html("</table>\n");
 	} else if(type == MD_BLOCK_THEAD) {
-		parser->html_.append("</thead>\n");
+		parser->impl->append_html("</thead>\n");
 	} else if(type == MD_BLOCK_TBODY) {
-		parser->html_.append("</tbody>\n");
+		parser->impl->append_html("</tbody>\n");
 	} else if(type == MD_BLOCK_TR) {
-		parser->html_.append("</tr>\n");
+		parser->impl->append_html("</tr>\n");
 	} else if(type == MD_BLOCK_TH) {
-		parser->html_.append("</th>\n");
+		parser->impl->append_html("</th>\n");
 	} else if(type == MD_BLOCK_TD) {
-		parser->html_.append("</td>\n");
+		parser->impl->append_html("</td>\n");
 	}
 	return 0;
 }
 
-int Parser::enter_span_cb(MD_SPANTYPE type, void* detail, void* userdata) {
+int Parser::Impl::enter_span_cb(MD_SPANTYPE type, void* detail, void* userdata) {
 	Parser* parser = (Parser*)userdata;
 
-    if(parser->image_nesting_level_ > 0) {
+    if(parser->impl->image_nesting_level_ > 0) {
     	return 0;
 	}
 
 	if(type == MD_SPAN_EM) {
-		parser->html_.append("<em>");
+		parser->impl->append_html("<em>");
 	} else if(type == MD_SPAN_STRONG) {
-		parser->html_.append("<strong>");
+		parser->impl->append_html("<strong>");
 	} else if(type == MD_SPAN_A) {
 		MD_SPAN_A_DETAIL* det = (MD_SPAN_A_DETAIL*)detail;
-		parser->html_.append("<a href=\"");
-		parser->render_attribute(&det->href, ESCAPE_URL);
+		parser->impl->append_html("<a href=\"");
+		parser->impl->append_html(parser->impl->render_attribute(&det->href, ESCAPE_URL));
 
-		auto url = parser->attribute_to_string(&det->href);
+		auto url = attribute_to_string(&det->href);
 		if(url.find("://") == std::string::npos) {
 			parser->files_.insert(url);
 		}
 
 		if(det->title.text != NULL) {
-			parser->html_.append("\" title=\"");
-			parser->render_attribute(&det->title, ESCAPE_HTML);
+			parser->impl->append_html("\" title=\"");
+			parser->impl->append_html(parser->impl->render_attribute(&det->title, ESCAPE_HTML));
 		}
 
-		parser->html_.append("\">");
+		parser->impl->append_html("\">");
 	} else if(type == MD_SPAN_IMG) {
 		MD_SPAN_IMG_DETAIL* det = (MD_SPAN_IMG_DETAIL*)detail;
 
-		parser->html_.append("<img src=\"");
-		parser->render_attribute(&det->src, ESCAPE_URL);
+		parser->impl->append_html("<img src=\"");
+		parser->impl->append_html(parser->impl->render_attribute(&det->src, ESCAPE_URL));
 
-		auto url = parser->attribute_to_string(&det->src);
+		auto url = attribute_to_string(&det->src);
 		if(url.find("://") == std::string::npos) {
 			parser->files_.insert(url);
 		}
-		parser->html_.append("\" alt=\"");
+		parser->impl->append_html("\" alt=\"");
 
-		++parser->image_nesting_level_;
+		++parser->impl->image_nesting_level_;
 	} else if(type == MD_SPAN_CODE) {
-		parser->html_.append("<code>");
+		parser->impl->append_html("<code>");
 	} else if(type == MD_SPAN_DEL) {
-		parser->html_.append("<del>");
+		parser->impl->append_html("<del>");
 	}
 
 	return 0;
 }
 
-int Parser::leave_span_cb(MD_SPANTYPE type, void* detail, void* userdata) {
+int Parser::Impl::leave_span_cb(MD_SPANTYPE type, void* detail, void* userdata) {
 	Parser* parser = (Parser*)userdata;
 
-    if(parser->image_nesting_level_ > 0) {
-    	if(parser->image_nesting_level_ == 1 && type == MD_SPAN_IMG) {
+    if(parser->impl->image_nesting_level_ > 0) {
+		if(parser->impl->image_nesting_level_ == 1 && type == MD_SPAN_IMG) {
 			MD_SPAN_IMG_DETAIL* det = (MD_SPAN_IMG_DETAIL*)detail;
 			if(det->title.text != NULL) {
-				parser->html_.append("\" title=\"");
-				parser->render_attribute(&det->title, ESCAPE_HTML);
+				parser->impl->append_html("\" title=\"");
+				parser->impl->append_html(parser->impl->render_attribute(&det->title, ESCAPE_HTML));
 			}
 
-			parser->html_.append("\">");
+			parser->impl->append_html("\">");
 
-			--parser->image_nesting_level_;
+			--parser->impl->image_nesting_level_;
 		}
 
     	return 0;
 	}
 
 	if(type == MD_SPAN_EM) {
-		parser->html_.append("</em>");
+		parser->impl->append_html("</em>");
 	} else if(type == MD_SPAN_STRONG) {
-		parser->html_.append("</strong>");
+		parser->impl->append_html("</strong>");
 	} else if(type == MD_SPAN_A) {
-		parser->html_.append("</a>");
+		parser->impl->append_html("</a>");
 	} else if(type == MD_SPAN_IMG) {
 		// noop
 	} else if(type == MD_SPAN_CODE) {
-		parser->html_.append("</code>");
+		parser->impl->append_html("</code>");
 	} else if(type == MD_SPAN_DEL) {
-		parser->html_.append("</del>");
+		parser->impl->append_html("</del>");
 	}
 
 	return 0;
 }
 
-int Parser::text_cb(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdata) {
+int Parser::Impl::text_cb(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* userdata) {
 	Parser* parser = (Parser*)userdata;
 
-	if(type != MD_TEXT_NULLCHAR && parser->in_hx) {
+	if(type != MD_TEXT_NULLCHAR && parser->impl->in_hx) {
 		if(type == MD_TEXT_BR || type == MD_TEXT_SOFTBR) {
-			parser->hx_text_.append(" ");
+			parser->impl->hx_text_.append(" ");
 		} else {
-			parser->hx_text_.append(text, size);
+			parser->impl->hx_text_.append(text, size);
 		}
 		return 0;
 	}
@@ -348,20 +396,22 @@ int Parser::text_cb(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* u
 	if(type == MD_TEXT_NULLCHAR) {
 		// noop
 	} else if(type == MD_TEXT_BR) {
-		parser->html_.append(parser->image_nesting_level_ == 0 ? "<br>\n" : " ");
+		parser->impl->append_html(parser->impl->image_nesting_level_ == 0 ? "<br>\n" : " ");
 	} else if(type == MD_TEXT_SOFTBR) {
-		parser->html_.append(parser->image_nesting_level_ == 0 ? "\n" : " ");
+		parser->impl->append_html(parser->impl->image_nesting_level_ == 0 ? "\n" : " ");
 	} else if(type == MD_TEXT_HTML) {
-		parser->html_.append(text, size);
+		parser->impl->append_html(text, size);
 	} else if(type == MD_TEXT_ENTITY) {
-		parser->render_html(text, size);
+		parser->impl->render_html(text, size);
 	} else if(type == MD_TEXT_CODE) {
-		parser->code_.append(text, size);
+		parser->impl->code_.append(text, size);
 	} else {
-		parser->render_html(text, size);
+		parser->impl->render_html(text, size);
 	}
 	return 0;
 }
+
+
 
 #define ISDIGIT(ch) ('0' <= (ch) && (ch) <= '9')
 #define ISLOWER(ch) ('a' <= (ch) && (ch) <= 'z')
@@ -371,7 +421,7 @@ int Parser::text_cb(MD_TEXTTYPE type, const MD_CHAR* text, MD_SIZE size, void* u
 #define HTML_NEED_ESCAPE(ch) ((ch) == '&' || (ch) == '<' || (ch) == '>' || (ch) == '"')
 #define URL_NEED_ESCAPE(ch) (!ISALNUM(ch) && strchr("-_.+!*'(),%#@?=;:/,+$", ch) == NULL)
 
-void Parser::render_html(const MD_CHAR* data, MD_SIZE size) {
+void Parser::Impl::render_html(const char* data, size_t size) {
 	MD_OFFSET beg = 0;
 	MD_OFFSET off = 0;
 
@@ -380,15 +430,15 @@ void Parser::render_html(const MD_CHAR* data, MD_SIZE size) {
 			++off;
 		}
 		if(off > beg) {
-			html_.append(data+beg, off-beg);
+			append_html(data+beg, off-beg);
 		}
 
 		if(off < size) {
 			switch(data[off]) {
-				case '&': html_.append("&amp;"); break;
-				case '<': html_.append("&lt;"); break;
-				case '>': html_.append("&gt;"); break;
-				case '"': html_.append("&quot;"); break;
+				case '&': append_html("&amp;"); break;
+				case '<': append_html("&lt;"); break;
+				case '>': append_html("&gt;"); break;
+				case '"': append_html("&quot;"); break;
 			}
 			++off;
 		} else {
@@ -398,7 +448,7 @@ void Parser::render_html(const MD_CHAR* data, MD_SIZE size) {
 	}
 }
 
-void Parser::render_url(const MD_CHAR* data, MD_SIZE size) {
+void Parser::Impl::render_url(const char* data, size_t size) {
 	static const MD_CHAR hex_chars[] = "0123456789ABCDEF";
 	MD_OFFSET beg = 0;
 	MD_OFFSET off = 0;
@@ -408,20 +458,20 @@ void Parser::render_url(const MD_CHAR* data, MD_SIZE size) {
 			++off;
 		}
 		if(off > beg) {
-			html_.append(data + beg, off - beg);
+			append_html(data + beg, off - beg);
 		}
 
 		if(off < size) {
 			char hex[3];
 
 			switch(data[off]) {
-				case '&':   html_.append("&amp;"); break;
-				case '\'':  html_.append("&#x27;"); break;
+				case '&':   append_html("&amp;"); break;
+				case '\'':  append_html("&#x27;"); break;
 				default:
 					hex[0] = '%';
 					hex[1] = hex_chars[((unsigned)data[off] >> 4) & 0xf];
 					hex[2] = hex_chars[((unsigned)data[off] >> 0) & 0xf];
-					html_.append(hex, 3);
+					append_html(hex, 3);
 					break;
 			}
 			++off;
@@ -433,7 +483,9 @@ void Parser::render_url(const MD_CHAR* data, MD_SIZE size) {
 	}
 }
 
-void Parser::render_attribute(const MD_ATTRIBUTE* attr, bool html) {
+std::string Parser::Impl::render_attribute(const MD_ATTRIBUTE* attr, bool html) {
+	std::string ret;
+
 	for(int i = 0; attr->substr_offsets[i] < attr->size; ++i) {
 		MD_TEXTTYPE type = attr->substr_types[i];
 		MD_OFFSET off = attr->substr_offsets[i];
@@ -442,7 +494,7 @@ void Parser::render_attribute(const MD_ATTRIBUTE* attr, bool html) {
 
 		//MD_TEXT_NULLCHAR
 		if(type == MD_TEXT_ENTITY) {
-			html_.append(text, size);
+			append_html(text, size);
 		} else {
 			if(html) {
 				render_html(text, size);
@@ -451,9 +503,11 @@ void Parser::render_attribute(const MD_ATTRIBUTE* attr, bool html) {
 			}
 		}
 	}
+
+	return ret;
 }
 
-std::string Parser::attribute_to_string(const MD_ATTRIBUTE* attr) {
+std::string attribute_to_string(const MD_ATTRIBUTE* attr) {
 	std::string ret;
 	for(int i = 0; attr->substr_offsets[i] < attr->size; ++i) {
 		MD_OFFSET off = attr->substr_offsets[i];
@@ -465,7 +519,6 @@ std::string Parser::attribute_to_string(const MD_ATTRIBUTE* attr) {
 
 	return ret;
 }
-
 
 } // namespace mkd
 
