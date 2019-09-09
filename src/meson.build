@@ -12,6 +12,15 @@ configure_file(
   configuration : ver_data
 )
 
+prog_python = import('python').find_installation('python3')
+bin2h_py = join_paths(meson.current_source_dir(), 'bin2h.py')
+
+mark_vim = join_paths(meson.current_source_dir(), 'mark.vim')
+configure_file(
+  output: 'mark_vim.h',
+  command: [prog_python, bin2h_py, '-i', mark_vim, '-o', 'mark_vim.h', '-n', 'mark_vim'],
+)
+
 
 md4c_lib = static_library('md4c', ['md4c/md4c.c'],
   #install : true,
@@ -22,6 +31,7 @@ md4c_lib = static_library('md4c', ['md4c/md4c.c'],
 
 
 sources = files([
+  'vim_highlight.cpp',
   'utils.cpp',
   'mkd.cpp',
 ])

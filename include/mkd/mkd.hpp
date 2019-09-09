@@ -1,6 +1,7 @@
 #ifndef HEADER_MKD_HPP
 #define HEADER_MKD_HPP
 
+#include <vector>
 #include <string>
 #include <unordered_set>
 #include <unordered_map>
@@ -20,6 +21,9 @@ class Parser {
 		inline std::string const& slug() { return slug_; }
 		inline auto const& codes() { return codes_; }
 		inline auto const& files() { return files_; }
+
+		void vim_exe(std::string const& path);
+		void vim_cmd(std::vector<std::string> const& cmd);
 
 	private:
 		std::string html_;

@@ -6,6 +6,8 @@
 
 #include <fmt/core.h>
 
+#include "vim_highlight.hpp"
+
 namespace mkd {
 
 std::string attribute_to_string(const MD_ATTRIBUTE* attr);
@@ -20,11 +22,14 @@ class Parser::Impl {
 		std::string hx_text_;
 		std::string file_;
 		std::string code_;
+		std::string code_type_;
 		std::unordered_set<std::string> slugs_;
 		int image_nesting_level_ = 0;
 		bool in_hx = false;
 
 		std::string uniq_slug(std::string const& str);
+
+		VimHighlight hi_;
 
 		static int enter_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata);
 		static int leave_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata);
@@ -152,6 +157,8 @@ int Parser::Impl::enter_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata
 
 		parser->impl->file_ = "";
 		parser->impl->code_ = "";
+		parser->impl->code_type_ = det->lang.text == nullptr ? "" :
+			std::string(det->lang.text, det->lang.size);
 
 		if(det->info.size > 0) {
 			int s = 0;
@@ -198,12 +205,6 @@ int Parser::Impl::enter_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata
 		}
 
 		parser->impl->append_html("<pre><code");
-
-		//if(det->lang.text != NULL) {
-		//	parser->impl->append_html(" class=\"language-");
-		//	parser->impl->append_html(parser->impl->render_attribute(&det->lang, ESCAPE_HTML));
-		//	parser->impl->append_html("\"");
-		//}
 
 		parser->impl->append_html(">");
 	} else if(type == MD_BLOCK_HTML) {
@@ -265,11 +266,17 @@ int Parser::Impl::leave_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata
 		}
 		parser->impl->in_hx = false;
 	} else if(type == MD_BLOCK_CODE) {
-		// TODO: pass code_ through syntax highlighter
-		parser->impl->render_html(
-			parser->impl->code_.c_str(),
-			static_cast<MD_SIZE>(parser->impl->code_.size())
-		);
+		if(parser->impl->code_type_.empty()) {
+			parser->impl->render_html(
+				parser->impl->code_.c_str(),
+				static_cast<MD_SIZE>(parser->impl->code_.size())
+			);
+		} else {
+			// TODO: normalize type
+			parser->impl->append_html(parser->impl->hi_.highlight(
+				parser->impl->code_, parser->impl->code_type_
+			));
+		}
 
 		parser->impl->append_html("</code></pre>\n");
 
@@ -518,6 +525,15 @@ std::string attribute_to_string(const MD_ATTRIBUTE* attr) {
 	}
 
 	return ret;
+}
+
+
+void Parser::vim_exe(std::string const& path) {
+	impl->hi_.vim_exe(path);
+}
+
+void Parser::vim_cmd(std::vector<std::string> const & cmd) {
+	impl->hi_.vim_cmd(cmd);
 }
 
 } // namespace mkd
