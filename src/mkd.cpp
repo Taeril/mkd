@@ -344,6 +344,7 @@ int Parser::Impl::enter_span_cb(MD_SPANTYPE type, void* detail, void* userdata) 
 
 		++parser->impl->image_nesting_level_;
 	} else if(type == MD_SPAN_CODE) {
+		parser->impl->code_ = "";
 		parser->impl->append_html("<code>");
 	} else if(type == MD_SPAN_DEL) {
 		parser->impl->append_html("<del>");
@@ -380,6 +381,11 @@ int Parser::Impl::leave_span_cb(MD_SPANTYPE type, void* detail, void* userdata) 
 	} else if(type == MD_SPAN_IMG) {
 		// noop
 	} else if(type == MD_SPAN_CODE) {
+		parser->impl->render_html(
+			parser->impl->code_.c_str(),
+			static_cast<MD_SIZE>(parser->impl->code_.size())
+		);
+
 		parser->impl->append_html("</code>");
 	} else if(type == MD_SPAN_DEL) {
 		parser->impl->append_html("</del>");
