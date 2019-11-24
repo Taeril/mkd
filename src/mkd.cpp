@@ -320,7 +320,7 @@ int Parser::Impl::enter_span_cb(MD_SPANTYPE type, void* detail, void* userdata) 
 		parser->impl->append_html(parser->impl->render_attribute(&det->href, ESCAPE_URL));
 
 		auto url = attribute_to_string(&det->href);
-		if(url.find("://") == std::string::npos) {
+		if(!url.empty() && url.back() != '/' && url.find("://") == std::string::npos) {
 			parser->files_.insert(url);
 		}
 
