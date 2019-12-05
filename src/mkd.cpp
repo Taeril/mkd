@@ -257,7 +257,7 @@ int Parser::Impl::leave_block_cb(MD_BLOCKTYPE type, void* detail, void* userdata
 		MD_BLOCK_H_DETAIL* det = (MD_BLOCK_H_DETAIL*)detail;
 		const auto level = det->level;
 		std::string hx_slug = parser->impl->uniq_slug(parser->impl->hx_text_);
-		if(parser->title_.empty()) {
+		if(parser->title_.empty() && level == 1) {
 			parser->title_ = parser->impl->hx_text_;
 			parser->slug_ = hx_slug;
 		} else {
